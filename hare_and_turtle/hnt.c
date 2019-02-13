@@ -164,5 +164,13 @@ int main(){
     pthread_create(&thread_god,     NULL, fun_god,     NULL);
 
     pthread_join(thread_repoter, NULL);
-    
+
+    sem_destroy(&sem_hare1);
+    sem_destroy(&sem_hare2);
+
+    sem_destroy(&sem_turtle1);
+    sem_destroy(&sem_turtle2);
+
+    sem_destroy(&sem_repoter);
+
 }

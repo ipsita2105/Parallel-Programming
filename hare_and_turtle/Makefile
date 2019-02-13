@@ -1,7 +1,11 @@
 all:
 	gcc hnt.c -pthread -o hnt.out
 test:
-	./hnt.out < input1.txt
-	./hnt.out < input2.txt
+	gcc hnt.c -pthread -o hnt.out
+	gcc generate_test.c -o gtest.out
+	./hnt.out < ./gtest.out
+run:
+	gcc hnt.c -pthread -o hnt.out
+	./hnt.out
 clean:
 	rm -f *.out
