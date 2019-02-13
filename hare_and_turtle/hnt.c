@@ -1,11 +1,11 @@
-#include<stdio.h>
-#include<pthread.h>
-#include<semaphore.h>
-#include<stdlib.h>
-#include<unistd.h>
-#include<time.h>
+# include <stdio.h>
+# include <pthread.h>
+# include <semaphore.h>
+# include <stdlib.h>
+# include <unistd.h>
+# include <time.h>
 
-#define FINISH 100
+#define FINISH 100 
 
 sem_t sem_hare1;
 sem_t sem_hare2;
@@ -34,6 +34,7 @@ void *fun_hare(){
 
         t += 1;
 
+	// change posn on time given by user
         if(t == change_time){
             p1 = p1new;
         }
@@ -41,12 +42,13 @@ void *fun_hare(){
         else{
 
             if(!s){
-                //update position
+                // update position
                 p1 += count;
                 count += 1;
             }
 
             if(t >= sleep_end_time){
+		// dont sleep
                 s= 0;
             }
 
@@ -80,6 +82,7 @@ void *fun_turtle(){
 
             p2 += 1;
 
+	    //change position of turtle at time given by user
             if(t == change_time){
                 p2 = p2new;
             }
