@@ -27,7 +27,8 @@ void *fun_hare(){
 
     srand(time(NULL));
     int sleeptime = rand()%FINISH + 1;
-    printf("Randomly generated sleep time for hare= %d\n", sleeptime);
+    int st = rand()%10 + 1;
+    printf("Randomly generated sleep duration for hare= %d\n", sleeptime);
     int sleep_end_time;
 
     while(1){
@@ -54,7 +55,7 @@ void *fun_hare(){
 
             if(!slept){
 
-                if(t == 5){
+                if(t == st){
                     s = 1;
                     slept = 1;
                     sleep_end_time = t+ sleeptime;
