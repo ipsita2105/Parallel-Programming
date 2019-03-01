@@ -5,11 +5,12 @@
 #include<unistd.h>
 #include<time.h>
 
-#define INPUT_SIZE 10000
+long long int INPUT_SIZE;
+int NUM_THREADS;
 #define NUM_BINS 10
-#define NUM_THREADS 10
 #define LBOUND 0.0
 #define UBOUND 10.0
+
 int flag = 0;
 long long int Hfinal[NUM_BINS];
 
@@ -25,7 +26,7 @@ void *calc_hist(void *tnum){
     long long int my_end   = (thread_num + 1)*(INPUT_SIZE/NUM_THREADS);
     int bin_num;
    
-    //srand(time(NULL));
+    srand(time(NULL));
     for(long long int i= my_start; i< my_end; i++){
         bin_num = get_bin(((float)rand()/(float)(RAND_MAX))*(UBOUND));
 
@@ -36,7 +37,10 @@ void *calc_hist(void *tnum){
 
 }
 
-int main(){
+int main(int argc, char* argv[]){
+
+    INPUT_SIZE = atoll(argv[1]);
+    NUM_THREADS = atoi(argv[2]);
 
     clock_t begin = clock();
 
@@ -51,11 +55,12 @@ int main(){
         pthread_join(h_threads[t], NULL);
     }
 
-    for(int b=0 ; b<NUM_BINS; b++){
+   /* for(int b=0 ; b<NUM_BINS; b++){
         printf("B:%i = %lld\n",b, Hfinal[b]);
     }
+   */
 
     clock_t end = clock();
-    printf("Time = %f s\n",(double)(end-begin)/CLOCKS_PER_SEC);
+    printf("%f\n",(double)(end-begin)/CLOCKS_PER_SEC);
 
 }

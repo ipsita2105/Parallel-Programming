@@ -6,9 +6,9 @@
 #include<unistd.h>
 #include<time.h>
 
-long long int INPUT_SIZE = 1000000;
+long long int INPUT_SIZE;
+#define NUM_THREADS 4
 #define NUM_BINS 100
-#define NUM_THREADS 10
 #define LBOUND 0.0
 #define UBOUND 10.0
 long long int Hfinal[NUM_BINS];
@@ -27,7 +27,7 @@ void *calc_hist(void *tnum){
     long long int my_end   = (thread_num + 1)*(INPUT_SIZE/NUM_THREADS);
     int bin_num;
 
-    //srand(time(NULL));
+    srand(time(NULL));
     for(long long int i= my_start; i< my_end; i++){
         bin_num = get_bin(((float)rand()/(float)(RAND_MAX))*(UBOUND));
         Htemp[thread_num][bin_num] += 1;
@@ -47,8 +47,9 @@ void calc_final_histogram(){
 }
 
 
-int main(){
+int main(int argc, char* argv[]){
 
+    INPUT_SIZE  = atoll(argv[1]);
     clock_t begin = clock();
 
     pthread_t h_threads[NUM_THREADS];
@@ -65,11 +66,12 @@ int main(){
     //calculate final histogram here
     calc_final_histogram();
 
-    for(int b=0 ; b<NUM_BINS; b++){
+   /* for(int b=0 ; b<NUM_BINS; b++){
         printf("B:%i = %lld\n",b, Hfinal[b]);
     }
+   */
 
     clock_t end = clock();
-    printf("Time = %f s\n",(double)(end-begin)/CLOCKS_PER_SEC);
+    printf("%f\n",(double)(end-begin)/CLOCKS_PER_SEC);
 
 }

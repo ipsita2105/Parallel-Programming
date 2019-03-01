@@ -6,9 +6,9 @@
 #include<unistd.h>
 
 #define SIZE 100
-#define NUM_THREADS 2
-#define NUM_OPER 400
-#define PERCENT_INSERT 30
+int NUM_THREADS;
+long long int NUM_OPER;
+int PERCENT_INSERT;
 
 pthread_rwlock_t rwlocks[SIZE];
 
@@ -183,29 +183,29 @@ void* thread_insert(void* tnum){
 
 	srand(time(NULL));
 
-//	pthread_mutex_lock(&table_lock);
 
 	for(long long int i=0; i<num_loops; i++){
 
 		//do percent inserts
 		for(int j=0; j<PERCENT_INSERT; j++){
 			r = rand()%500 + 1;
-			printf("inserted %d\n", r);
 			ht_set(r, r*11);
 		}	
 
 		for(int j=0; j<100-PERCENT_INSERT; j++){
 		        r = rand()%500 + 1;
-			printf("search %d\n", r);
 			ht_get(r);
 		}
 	}
 
-//	pthread_mutex_unlock(&table_lock);
 }
 
 
-int main(){
+int main(char argc, char* argv[]){
+
+	NUM_OPER = atoll(argv[1]);
+        PERCENT_INSERT = atoi(argv[2]);
+        NUM_THREADS = atoi(argv[3]);
 
 	ht_create();
 
@@ -232,7 +232,7 @@ int main(){
 	}
 
 	clock_t end = clock();
-	printf("TIME TAKEN = %f s\n",(double)(end-begin)/CLOCKS_PER_SEC);
+	printf("%f\n",(double)(end-begin)/CLOCKS_PER_SEC);
 	return 0;
 
 }

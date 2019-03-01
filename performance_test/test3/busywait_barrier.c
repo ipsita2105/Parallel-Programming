@@ -5,7 +5,7 @@
 #include<time.h>
 #include<unistd.h>
 
-#define NUM_THREADS 10
+int NUM_THREADS;
 #define BARRIER_COUNT 100
 
 int thread_counts[BARRIER_COUNT];
@@ -26,16 +26,13 @@ void* thread_fun(void* tnum){
 	    	
 	    	while(thread_counts[i] < NUM_THREADS);
 
-	    	if(my_rank ==0){
-	    		printf("All threads reached barrier %d\n", i);
-	    	}
-
 	}
 
 }
 
-void main(){
+void main(char argc, char* argv[]){
 
+	NUM_THREADS = atoi(argv[1]);
 	clock_t begin = clock();
 
 	pthread_t work_threads[NUM_THREADS];
@@ -49,6 +46,6 @@ void main(){
         }
 
 	clock_t end = clock();
-	printf("Time = %f s\n",(double)(end-begin)/CLOCKS_PER_SEC);
+	printf("%f\n",(double)(end-begin)/CLOCKS_PER_SEC);
 
 }

@@ -6,7 +6,7 @@
 #include<semaphore.h>
 #include<unistd.h>
 
-#define NUM_THREADS 10
+int NUM_THREADS;
 #define BARRIER_COUNT 100
 
 int thread_count = 0;
@@ -20,7 +20,7 @@ void* thread_fun(void* tnum){
 	//imaginary work here
 
 	for(int i=0; i< BARRIER_COUNT; i++){
-
+		pthread_mutex_lock(&barrier_mutex);
 		thread_count++;
 
 		if(thread_count == NUM_THREADS){
@@ -35,14 +35,13 @@ void* thread_fun(void* tnum){
 
 		pthread_mutex_unlock(&barrier_mutex);
 
-		if(my_rank == 0){
-			printf("All threads reached barrier %d\n",i);
-		}
 	}
 
 }
 
-void main(){
+void main(char argc, char* argv[]){
+	
+	NUM_THREADS = atoi(argv[1]);
 
 	pthread_mutex_init(&barrier_mutex, NULL);
 	pthread_cond_init(&cond_var, NULL);
@@ -60,7 +59,7 @@ void main(){
         }
 
 	clock_t end = clock();
-	printf("Time = %f s\n",(double)(end-begin)/CLOCKS_PER_SEC);
+	printf("%f\n",(double)(end-begin)/CLOCKS_PER_SEC);
 
 	pthread_mutex_destroy(&barrier_mutex);
 	pthread_cond_destroy(&cond_var);

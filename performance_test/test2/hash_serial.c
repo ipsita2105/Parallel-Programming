@@ -1,30 +1,34 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<limits.h>
+#include<pthread.h>
+#include<time.h>
+#include<unistd.h>
 
-#define SIZE 10
+#define SIZE 500
+long long int NUM_OPER;
+int PERCENT_INSERT;
 
 struct entry_s{
 
-	int data;
-	int key;
-	struct entry_s *next;
+        int data;
+        int key;
+        struct entry_s *next;
 };
 
 typedef struct entry_s entry_t;
 
 struct hashtable_s{
 
-	struct entry_s **table;
-};
+        struct entry_s **table;
+} *hashtable;
 
 typedef struct hashtable_s hashtable_t;
 
-//create a new hashtable
 
-hashtable_t* ht_create(){
+//create a new hashtable
+void  ht_create(){
 	
-	hashtable_t* hashtable = NULL;
 	int i;
 
 	if(SIZE < 1) return NULL;
@@ -43,7 +47,6 @@ hashtable_t* ht_create(){
 		hashtable->table[i] = NULL;
 	}
 
-	return hashtable;
 }
 
 //the hash function
@@ -75,7 +78,7 @@ entry_t *ht_newpair(int key, int data){
 }
 
 //insert key-value pair into hash table
-void ht_set( hashtable_t* hashtable, int key, int data){
+void ht_set(int key, int data){
 
 	int bin =0;
 	entry_t* newpair = NULL;
@@ -91,12 +94,12 @@ void ht_set( hashtable_t* hashtable, int key, int data){
 		next = next->next;
 	}
 
-	//if there is already a pair. replace that?
+	//if there is already a pair. do nothing
 	
 	if(next != NULL && next->key !=NULL && key == next->key){
-	
-		free(next->data);
-		next->data = data;
+
+		//printf("here\n");	
+		return;
 	
 	//if not found time to grow a pair
 	} 
@@ -129,7 +132,7 @@ void ht_set( hashtable_t* hashtable, int key, int data){
 }
 
 // get key-value pair from hash table
-int ht_get(hashtable_t *hashtable, int key){
+int ht_get(int key){
 
 
 	int bin =0;
@@ -146,7 +149,8 @@ int ht_get(hashtable_t *hashtable, int key){
 
 	//did we actually find it?
 	if(pair == NULL || pair->key == NULL || key != pair->key){
-		return NULL;
+
+		return -1;
 	}
 	else{
 		return pair->data;
@@ -154,36 +158,44 @@ int ht_get(hashtable_t *hashtable, int key){
 	
 }
 
-int main(){
 
-	hashtable_t* hashtable = ht_create();
+int main(char argc, char* argv[]){
 
-	ht_set(hashtable, 1, 11);
-	ht_set(hashtable, 2, 22);
-	ht_set(hashtable, 3, 33);
-	ht_set(hashtable, 4, 44);
+	NUM_OPER = atoll(argv[1]);
+	PERCENT_INSERT = atoi(argv[2]);
 
-	printf("%d\n", ht_get(hashtable, 1));
-	printf("%d\n", ht_get(hashtable, 2));
-	printf("%d\n", ht_get(hashtable, 3));
-	printf("%d\n", ht_get(hashtable, 4));
+	ht_create();
 
+	//lets first keep it populated	
+	for(int v=1; v<=100; v++){
+		ht_set(v, v*11);
+	}
+
+	clock_t begin = clock();
+        
+        long long int num_loops = NUM_OPER/100;
+
+        int r;
+
+        srand(time(NULL));
+
+
+        for(long long int i=0; i<num_loops; i++){
+
+                //do percent inserts
+                for(int j=0; j<PERCENT_INSERT; j++){
+                        r = rand()%500 + 1;
+                        ht_set(r, r*11);
+                }
+
+                for(int j=0; j<100-PERCENT_INSERT; j++){
+                        r = rand()%500 + 1;
+                        ht_get(r);
+                }
+        }
+
+	clock_t end = clock();
+	printf("%f\n",(double)(end-begin)/CLOCKS_PER_SEC);
 	return 0;
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

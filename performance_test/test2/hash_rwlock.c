@@ -6,11 +6,10 @@
 #include<unistd.h>
 
 #define SIZE 500
-#define NUM_THREADS 2
-#define NUM_OPER 400
-#define PERCENT_INSERT 30
+int NUM_THREADS;
+long long int NUM_OPER;
+int PERCENT_INSERT;
 
-//pthread_mutex_t table_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 struct entry_s{
@@ -170,7 +169,6 @@ void* thread_insert(void* tnum){
 	long long int my_num_opr = NUM_OPER/NUM_THREADS; //some multiple of 100
 	long long int num_loops = my_num_opr/100;
 
-	int x = 1;
 	int r;
 
 	srand(time(NULL));
@@ -182,8 +180,6 @@ void* thread_insert(void* tnum){
 		//do percent inserts
 		for(int j=0; j<PERCENT_INSERT; j++){
 			r = rand()%500 + 1;
-			printf("%d: inserted %d\n",x, r);
-			x++;
 
 			pthread_rwlock_wrlock(&rwlock);
 			ht_set(r, r*11);
@@ -193,8 +189,6 @@ void* thread_insert(void* tnum){
 
 		for(int j=0; j<100-PERCENT_INSERT; j++){
 		        r = rand()%500 + 1;
-			printf("%d: search %d\n",x, r);
-			x++;
 
 			pthread_rwlock_rdlock(&rwlock);
 			ht_get(r);
@@ -206,7 +200,11 @@ void* thread_insert(void* tnum){
 }
 
 
-int main(){
+int main(char argc, char* argv[]){
+
+	NUM_OPER = atoll(argv[1]);
+	PERCENT_INSERT = atoi(argv[2]);
+	NUM_THREADS = atoi(argv[3]);
 
 	ht_create();
 
@@ -228,7 +226,7 @@ int main(){
 	}
 
 	clock_t end = clock();
-	printf("TIME TAKEN = %f s\n",(double)(end-begin)/CLOCKS_PER_SEC);
+	printf("%f\n",(double)(end-begin)/CLOCKS_PER_SEC);
 	return 0;
 
 }

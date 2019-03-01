@@ -6,7 +6,7 @@
 #include<semaphore.h>
 #include<unistd.h>
 
-#define NUM_THREADS 10
+int NUM_THREADS;
 #define BARRIER_COUNT 100
 
 int counter;
@@ -38,14 +38,13 @@ void* thread_fun(void* tnum){
 			sem_wait(&barrier_sems[i]);
 		}
 
-		if(my_rank == 0){
-			printf("All threads reached barrier %d\n",i);
-		}
 	}
 
 }
 
-void main(){
+void main(char argc, char* argv[]){
+
+	NUM_THREADS = atoi(argv[1]);
 
 	for(int i=0; i< BARRIER_COUNT; i++){
 	
@@ -67,7 +66,7 @@ void main(){
         }
 
 	clock_t end = clock();
-	printf("Time = %f s\n",(double)(end-begin)/CLOCKS_PER_SEC);
+	printf("%f\n",(double)(end-begin)/CLOCKS_PER_SEC);
 
 	for(int i=0; i< BARRIER_COUNT; i++){
 		sem_destroy(&barrier_sems[i]);

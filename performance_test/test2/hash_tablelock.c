@@ -6,9 +6,9 @@
 #include<unistd.h>
 
 #define SIZE 500
-#define NUM_THREADS 2
-#define NUM_OPER 400
-#define PERCENT_INSERT 30
+int NUM_THREADS;
+long long int NUM_OPER;
+int PERCENT_INSERT;
 
 pthread_mutex_t table_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -88,6 +88,8 @@ void ht_set(int key, int data){
 	entry_t* next = NULL;
 	entry_t* last = NULL;
 
+	pthread_mutex_lock(&table_lock); // lock table here
+
 	bin = ht_hash(key);
 
 	next = hashtable->table[bin];
@@ -104,6 +106,8 @@ void ht_set(int key, int data){
 		//printf("here\n");	
 		//free(next->data);
 		//next->data = data;
+
+		pthread_mutex_unlock(&table_lock);
 		return;
 	
 	//if not found time to grow a pair
@@ -134,6 +138,8 @@ void ht_set(int key, int data){
 	
 	}
 
+	pthread_mutex_unlock(&table_lock);
+
 }
 
 // get key-value pair from hash table
@@ -142,6 +148,8 @@ int ht_get(int key){
 
 	int bin =0;
 	entry_t* pair;
+
+	pthread_mutex_lock(&table_lock); //get lock
 
 	bin = ht_hash(key);
 
@@ -154,9 +162,13 @@ int ht_get(int key){
 
 	//did we actually find it?
 	if(pair == NULL || pair->key == NULL || key != pair->key){
+
+		pthread_mutex_unlock(&table_lock);
 		return -1;
 	}
 	else{
+
+		pthread_mutex_unlock(&table_lock);
 		return pair->data;
 	}
 	
@@ -169,36 +181,33 @@ void* thread_insert(void* tnum){
 	long long int my_num_opr = NUM_OPER/NUM_THREADS; //some multiple of 100
 	long long int num_loops = my_num_opr/100;
 
-	int x = 1;
 	int r;
 
 	srand(time(NULL));
 
-	pthread_mutex_lock(&table_lock);
 
 	for(long long int i=0; i<num_loops; i++){
 
 		//do percent inserts
 		for(int j=0; j<PERCENT_INSERT; j++){
 			r = rand()%500 + 1;
-			printf("%d: inserted %d\n",x, r);
-			x++;
 			ht_set(r, r*11);
 		}	
 
 		for(int j=0; j<100-PERCENT_INSERT; j++){
 		        r = rand()%500 + 1;
-			printf("%d: search %d\n",x, r);
-			x++;
 			ht_get(r);
 		}
 	}
 
-	pthread_mutex_unlock(&table_lock);
 }
 
 
-int main(){
+int main(char argc, char* argv[]){
+
+	NUM_OPER = atoll(argv[1]);
+	PERCENT_INSERT = atoi(argv[2]);
+	NUM_THREADS = atoi(argv[3]);
 
 	ht_create();
 
@@ -220,7 +229,7 @@ int main(){
 	}
 
 	clock_t end = clock();
-	printf("TIME TAKEN = %f s\n",(double)(end-begin)/CLOCKS_PER_SEC);
+	printf("%f\n",(double)(end-begin)/CLOCKS_PER_SEC);
 	return 0;
 
 }
