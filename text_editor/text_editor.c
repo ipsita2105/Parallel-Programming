@@ -1,16 +1,45 @@
+/*****************************includes**************************/
 #include<stdlib.h>
 #include<stdio.h>
 #include<unistd.h>
 #include<termios.h>
 #include<ctype.h>
+#include<errno.h>
+#include<sys/ioctl.h>
+/*****************************defines**************************/
 
-struct termios orig_termios;
+#define CTRL_KEY(k) ((k) & 0x1f) //for mapping ctrl+_ combos
 
+/******************************data***************************/
+
+struct editorConfig{
+
+  int screenrows;
+  int screencols;
+  struct termios orig_termios;
+
+};
+
+struct editorConfig E;
+
+/*****************************terminal**************************/
+
+void die(const char *s){
+
+	//clear screen at exit
+	write(STDOUT_FILENO, "\x1b[2J", 4);
+        write(STDOUT_FILENO, "\x1b[H", 3);
+
+	perror(s); // for descriptive error msg
+	exit(1);
+
+}
 
 void disableRawMode(){
 
 	//TCSAFLUSH discards any unread input
-	tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios) == -1)
+		die("tcsetattr");
 }
 
 
@@ -21,20 +50,22 @@ void disableRawMode(){
 //we want raw mode
 void enableRawMode(){
 
-	tcgetattr(STDIN_FILENO, &orig_termios);
+	if (tcgetattr(STDIN_FILENO, &E.orig_termios) == -1) die("tcgetattr");
 
 	//atexit from stdlib
 	//to call function at end of main
 	atexit(disableRawMode);
 
-	struct termios raw = orig_termios;
+	struct termios raw = E.orig_termios;
 
 	// IXON: diable ctrl+s and ctrl+q
 	// ICRNL: carriage return new line
-	raw.c_iflag &= ~(ICRNL | IXON);
+	raw.c_iflag &= ~(BRKINT| ICRNL | INPCK | ISTRIP | IXON);
 
 	//turn off output processing
 	raw.c_oflag &= ~(OPOST);
+
+	raw.c_cflag |= (CS8);
 
 	//with echo whatever we type is showed on terminal
 	//there its turned off
@@ -50,30 +81,105 @@ void enableRawMode(){
 	//IEXTEN for ctrl+v
 	raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
 
-	//then write it back on terminal
-	tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+	raw.c_cc[VMIN] = 0;     //min bytes on input before read returns
+	raw.c_cc[VTIME] = 1;    //max time before timeout 
 
+	//then write it back on terminal
+	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) die("tcsetattr");
+
+}
+
+//wait for one keypress and return it
+char editorReadKey(){
+
+	int nread;
+	char c;
+
+	while((nread = read(STDIN_FILENO, &c, 1)) != 1){
+	
+		if(nread == -1 && errno != EAGAIN) die("read");
+	
+	}
+
+	return c;
+}
+
+int getWindowSize(int *rows, int *cols){
+	
+	struct winsize ws;
+
+	if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0){
+		return -1;
+	}else{
+	
+		*cols = ws.ws_col;
+		*rows = ws.ws_row;
+		return 0;
+	}
+}
+
+
+/*****************************output**************************/
+
+void editorDrawRows(){
+	
+	int y;
+	for(y=0; y<E.screenrows; y++){
+		write(STDOUT_FILENO, "~\r\n", 3);
+	}
 
 }
 
 
+void editorRefreshScreen(){
+
+	write(STDOUT_FILENO, "\x1b[2J", 4); //clear screen
+	write(STDOUT_FILENO, "\x1b[H", 3);  //reposition cursor	
+
+	editorDrawRows(); //draw ~
+
+	write(STDOUT_FILENO, "\x1b[H", 3); //after drawing reposition cursor
+}
+
+
+
+
+
+/*****************************input**************************/
+//waits for key press and handles it
+//like by mapping
+void editorProcessKeypress(){
+
+	char c = editorReadKey();
+
+	switch(c){
+	
+		case CTRL_KEY('q'):
+			write(STDOUT_FILENO, "\x1b[2J", 4);
+			write(STDOUT_FILENO, "\x1b[H" ,3);
+			exit(0);
+			break;
+	}
+}
+
+
+/*****************************init**************************/
+
+void initEditor(){
+
+	if (getWindowSize(&E.screenrows, &E.screencols) == -1) die("getWindowSize");
+}
+
 int main(){
 
 	enableRawMode();
+	initEditor();
 
-	char c;
 	//reads 1 byte from stdin
-	
-	while(read(STDIN_FILENO, &c, 1) == 1 && c != 'q'){
-		
-		//iscntl = check if control charachter
-		if(iscntrl(c)){
-		   printf("%d\n",c);
-		} else{
-		 
-		   // \r returns to left	
-		   printf("%d ('%c')\r\n",c, c);
-		}	
+	while(1){
+
+		editorRefreshScreen();
+		editorProcessKeypress();
 	}
 
 	return 0;
