@@ -101,11 +101,37 @@ char editorReadKey(){
 
 	while((nread = read(STDIN_FILENO, &c, 1)) != 1){
 	
-		if(nread == -1 && errno != EAGAIN) die("read");
-	
+		if(nread == -1 && errno != EAGAIN) die("read");	
 	}
 
-	return c;
+	// mapping arrow keys 
+	// therefore read to identify escape seqs	
+	if (c == '\x1b'){ //if u see an escape seq
+	
+		char seq[3];
+
+		//read two more bytes
+		if(read(STDIN_FILENO, &seq[0], 1) != 1) return '\x1b';
+		if(read(STDIN_FILENO, &seq[1], 1) != 1) return '\x1b';
+
+		if(seq[0] == '['){
+			
+			switch(seq[1]){
+				
+				case 'A': return 'w';
+				case 'B': return 's';
+				case 'C': return 'd';
+				case 'D': return 'a';
+			}
+		}
+		
+		return '\x1b';
+
+	} else {
+	
+		return c;
+	}
+
 }
 
 int getCursorPosition(int *rows, int *cols){
