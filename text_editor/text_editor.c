@@ -45,10 +45,11 @@ typedef struct erow{
 struct editorConfig{
 
   int cx, cy;
+  int rowoff; //current row
   int screenrows;
   int screencols;
   int numrows;
-  erow row;
+  erow* row;
   struct termios orig_termios;
 
 };
@@ -241,6 +242,23 @@ int getWindowSize(int *rows, int *cols){
 	}
 }
 
+/*****************************row operations**************************/
+
+void editorAppendRow(char* s, size_t len){
+
+	//realloc to increase row by one
+	E.row = realloc(E.row, sizeof(erow)*(E.numrows+1));
+	
+	//at is index of new row
+	int at = E.numrows;
+	E.row[at].size = len;
+	E.row[at].chars = malloc(len + 1);
+	memcpy(E.row[at].chars, s, len); //copy the text to allocated memory
+	E.row[at].chars[len] = '\0';
+	E.numrows ++;
+
+}
+
 /*****************************file i/o**************************/
 
 void editorOpen(char* filename){
@@ -254,18 +272,13 @@ void editorOpen(char* filename){
 
 	//line points to memory allocated
 	//linecap is amt of memory allocated	
-	linelen = getline(&line, &linecap, fp);
+	while((linelen = getline(&line, &linecap, fp)) != -1){
 
-	if(linelen != -1){
-	
-		while(linelen > 0 && (line[linelen -1] == '\n' || line[linelen-1] == '\r'))
-			linelen --;
-	
-	E.row.size = linelen;
-	E.row.chars = malloc(linelen + 1);
-	memcpy(E.row.chars, line, linelen); //copy the text to allocated memory
-	E.row.chars[linelen] = '\0';
-	E.numrows = 1;
+		//strip of \n or \r
+	     	while(linelen > 0 && (line[linelen -1] == '\n' || line[linelen-1] == '\r'))
+	     		linelen --;
+	     
+	     	editorAppendRow(line, linelen);
 	}
 
 	free(line);
@@ -306,32 +319,42 @@ void editorDrawRows(struct abuf *ab){
 	
 	int y;
 	for(y=0; y<E.screenrows; y++){
+
+	   int filerow = y + E.rowoff;
+	   if (filerow >= E.numrows){
 	
 	   //draw after text lines
-	   if (y >= E.numrows){
-
-		if(y == E.screenrows/3){
-		
-			char welcome[80];
-			int welcomelen = snprintf(welcome, sizeof(welcome),
-				"Text Editor --version %s", EDITOR_VERSION);
-
-		if (welcomelen > E.screencols) welcomelen = E.screencols;
-
-		int padding = (E.screencols - welcomelen)/2;
-		
-		if (padding){
-			abAppend(ab, "~", 1);
-			padding --;
-		}
-
-		while (padding--) abAppend(ab, " ", 1);
-		abAppend(ab, welcome, welcomelen);
-
-		}else{
-
-		   abAppend(ab, "~", 1);
-		}
+		   if (y >= E.numrows){
+			//display only when no file input
+			if(E.numrows == 0 && y == E.screenrows/3){
+			
+				char welcome[80];
+				int welcomelen = snprintf(welcome, sizeof(welcome),
+					"Text Editor --version %s", EDITOR_VERSION);
+	
+			if (welcomelen > E.screencols) welcomelen = E.screencols;
+	
+			int padding = (E.screencols - welcomelen)/2;
+			
+			if (padding){
+				abAppend(ab, "~", 1);
+				padding --;
+			}
+	
+			while (padding--) abAppend(ab, " ", 1);
+			abAppend(ab, welcome, welcomelen);
+	
+			}else{
+	
+			   abAppend(ab, "~", 1);
+			}
+	
+	   }else{
+			
+		   int len = E.row[filerow].size;
+		   if (len > E.screencols) len = E.screencols;
+		   abAppend(ab, E.row[filerow].chars, len);
+ 	   }
 
 		abAppend(ab, "\x1b[K", 3); //clear each line
 		if(y < E.screenrows - 1){
@@ -339,15 +362,8 @@ void editorDrawRows(struct abuf *ab){
 		}
 	
 
-	  } else {
-
-	  	int len = E.row.size;
-		if (len > E.screencols) len = E.screencols;
-		abAppend(ab, E.row.chars, len);
 	  }
-
 	}
-
 }
 
 
@@ -462,7 +478,9 @@ void initEditor(){
 	//cursor x and y position
 	E.cx = 0;
 	E.cy = 0;
+	E.rowoff = 0;
 	E.numrows = 0;
+	E.row = NULL;
 
 	if (getWindowSize(&E.screenrows, &E.screencols) == -1) die("getWindowSize");
 }
