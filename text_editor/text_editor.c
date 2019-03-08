@@ -7,6 +7,7 @@
 #include<errno.h>
 #include<sys/ioctl.h>
 #include<string.h>
+#include<sys/types.h>
 /*****************************defines**************************/
 
 #define EDITOR_VERSION "0.0.1"
@@ -28,11 +29,21 @@ enum editorKey{
 
 /******************************data***************************/
 
+//for storing row of text editor
+
+typedef struct erow{
+
+	int size;
+	char *chars;
+}erow;
+
 struct editorConfig{
 
   int cx, cy;
   int screenrows;
   int screencols;
+  int numrows;
+  erow row;
   struct termios orig_termios;
 
 };
@@ -225,6 +236,20 @@ int getWindowSize(int *rows, int *cols){
 	}
 }
 
+/*****************************file i/o**************************/
+
+void editorOpen(){
+
+	char *line = "Hello, world!";
+	ssize_t linelen = 13;
+	
+	E.row.size = linelen;
+	E.row.chars = malloc(linelen + 1);
+	memcpy(E.row.chars, line, linelen); //copy the text to allocated memory
+	E.row.chars[linelen] = '\0';
+	E.numrows = 1;
+}
+
 /*****************************append buffer**************************/
 
 struct abuf{
@@ -258,6 +283,9 @@ void editorDrawRows(struct abuf *ab){
 	
 	int y;
 	for(y=0; y<E.screenrows; y++){
+	
+	   //draw after text lines
+	   if (y >= E.numrows){
 
 		if(y == E.screenrows/3){
 		
@@ -287,6 +315,14 @@ void editorDrawRows(struct abuf *ab){
 		   abAppend(ab, "\r\n", 2);
 		}
 	
+
+	  } else {
+
+	  	int len = E.row.size;
+		if (len > E.screencols) len = E.screencols;
+		abAppend(ab, E.row.chars, len);
+	  }
+
 	}
 
 }
@@ -403,6 +439,7 @@ void initEditor(){
 	//cursor x and y position
 	E.cx = 0;
 	E.cy = 0;
+	E.numrows = 0;
 
 	if (getWindowSize(&E.screenrows, &E.screencols) == -1) die("getWindowSize");
 }
@@ -411,6 +448,7 @@ int main(){
 
 	enableRawMode();
 	initEditor();
+	editorOpen();
 
 	//reads 1 byte from stdin
 	while(1){
