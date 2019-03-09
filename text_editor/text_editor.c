@@ -324,7 +324,7 @@ void editorDrawRows(struct abuf *ab){
 	   if (filerow >= E.numrows){
 	
 	   //draw after text lines
-		   if (y >= E.numrows){
+		   
 			//display only when no file input
 			if(E.numrows == 0 && y == E.screenrows/3){
 			
@@ -361,9 +361,8 @@ void editorDrawRows(struct abuf *ab){
 		   abAppend(ab, "\r\n", 2);
 		}
 	
-
-	  }
 	}
+
 }
 
 
