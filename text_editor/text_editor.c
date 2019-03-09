@@ -47,7 +47,8 @@ typedef struct erow{
 
 struct editorConfig{
 
-  int cx, cy;
+  int cx, cy; // cx is offset into chars
+  int rx;     //offset into render
   int rowoff; //current row
   int coloff; //current column
   int screenrows;
@@ -248,6 +249,28 @@ int getWindowSize(int *rows, int *cols){
 
 /*****************************row operations**************************/
 
+//convert Cx index to Rx
+int editorRowCxToRx(erow *row, int cx){
+
+	int rx = 0;
+	int j;
+
+	for(j=0; j<cx; j++){
+	
+		//rx % EDITOR_TAB_STOP cols right of last tab stop
+		//EDITOR_TAB_STOP - 1 - (above) will give spaces
+		//we have to move to reach the next tab stop
+		if(row->chars[j] == '\t')
+			rx += (EDITOR_TAB_STOP - 1) - (rx % EDITOR_TAB_STOP);
+		rx++;
+	}
+
+	return rx;
+}
+
+
+
+
 //get render from row
 //basically handle tabs
 void editorUpdateRow(erow *row) {
@@ -366,6 +389,13 @@ void abFree(struct abuf *ab){
 
 void editorScroll(){
 
+	E.rx = 0;
+
+	if (E.cy < E.numrows){
+		
+		E.rx = editorRowCxToRx(&E.row[E.cy], E.cx);
+	}
+
 	//E.rowoff refers to top of screen
 	//E.screenrows refer to bottom of screen
 
@@ -382,12 +412,12 @@ void editorScroll(){
 		E.rowoff = E.cy - E.screenrows + 1;
 	}
 
-	if (E.cx < E.coloff){
-		E.coloff = E.cx;
+	if (E.rx < E.coloff){
+		E.coloff = E.rx;
 	}
 
-	if (E.cx >= E.coloff + E.screencols){
-		E.coloff = E.cx - E.screencols + 1;
+	if (E.rx >= E.coloff + E.screencols){
+		E.coloff = E.rx - E.screencols + 1;
 	}
 
 }
@@ -465,7 +495,7 @@ void editorRefreshScreen(){
 	char buf[32];
 	//+1 cause termial 1 indexed
 	//move cursor to position 
-	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, (E.cx - E.coloff) + 1);
+	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, (E.rx - E.coloff) + 1);
 	abAppend(&ab, buf, strlen(buf));
 
 	//abAppend(&ab, "\x1b[H", 3); //after drawing reposition cursor
@@ -591,6 +621,7 @@ void initEditor(){
 	//cursor x and y position
 	E.cx = 0;
 	E.cy = 0;
+	E.rx = 0;
 	E.rowoff = 0;
 	E.coloff = 0;
 	E.numrows = 0;
