@@ -251,15 +251,35 @@ int getWindowSize(int *rows, int *cols){
 //basically handle tabs
 void editorUpdateRow(erow *row) {
 
+	int tabs = 0;
+	int j;
+
+	for (j=0; j< row->size; j++)
+		if (row->chars[j] == '\t') tabs++;
+
  	 free(row->render);
- 	 row->render = malloc(row->size + 1);
+	 //tab of size 8
+	 //1 in \t
+	 //so add 7
+ 	 row->render = malloc(row->size + tabs*7 + 1);
 
- 	 int j;
+ 	 
  	 int idx = 0;
-
  	 for (j = 0; j < row->size; j++) {
 
- 	  	 row->render[idx++] = row->chars[j];
+		 if (row->chars[j] == '\t'){
+
+			//append a space
+		 	row->render[idx++] = ' ';
+
+			//tab end till 8 cols
+			while(idx % 8 != 0) row->render[idx++] = ' ';
+ 		 
+		 }else{
+		 
+		 	row->render[idx++] = row->chars[j];
+		 }
+ 	  	 
  	 }
 
  	 row->render[idx] = '\0';
