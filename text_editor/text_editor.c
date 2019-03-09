@@ -13,6 +13,8 @@
 #include<sys/ioctl.h>
 #include<string.h>
 #include<sys/types.h>
+#include<time.h>
+
 /*****************************defines**************************/
 
 #define EDITOR_VERSION "0.0.1"
@@ -55,6 +57,9 @@ struct editorConfig{
   int screencols;
   int numrows;
   erow* row;
+  char *filename;
+  char statusmsg[80];
+  time_t statusmsg_time;
   struct termios orig_termios;
 
 };
@@ -335,6 +340,9 @@ void editorAppendRow(char* s, size_t len){
 
 void editorOpen(char* filename){
 
+	free(E.filename);
+	E.filename = strdup(filename); //makes a copy of given string
+
 	FILE *fp   = fopen(filename, "r");
 	if (!fp) die("fopen");
 
@@ -479,6 +487,42 @@ void editorDrawRows(struct abuf *ab){
 }
 
 
+void editorDrawStatusBar(struct abuf *ab){
+
+	abAppend(ab, "\x1b[7m", 4); //switch to inverted colours
+
+	char status[80], rstatus[80];
+
+	int len = snprintf(status, sizeof(status), "%.20s - %d lines",
+			E.filename ? E.filename : "[No Name]", E.numrows);
+
+	int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
+				E.cy + 1, E.numrows);
+
+	if (len > E.screencols) len = E.screencols;
+
+	abAppend(ab, status, len);
+
+	//rest of the white back
+	while (len < E.screencols){
+	
+		//so that its on right side
+		if (E.screencols - len == rlen){
+			
+			abAppend(ab, rstatus, rlen);
+			break;
+
+		}else{
+			abAppend(ab, " ", 1);
+			len++;
+		}
+
+	}
+
+	abAppend(ab, "\x1b[m", 3); //switch back to normal
+}
+
+
 void editorRefreshScreen(){
 
 	editorScroll();
@@ -489,6 +533,7 @@ void editorRefreshScreen(){
 	abAppend(&ab, "\x1b[H", 3);  //reposition cursor	
 
 	editorDrawRows(&ab); //draw ~
+	editorDrawStatusBar(&ab);
 
 	char buf[32];
 	//+1 cause termial 1 indexed
@@ -637,6 +682,9 @@ void initEditor(){
 	E.coloff = 0;
 	E.numrows = 0;
 	E.row = NULL;
+	E.filename = NULL;
+	E.statusmsg[0] = '\0';
+	E.statusmsg_time = 0;
 
 	if (getWindowSize(&E.screenrows, &E.screencols) == -1) die("getWindowSize");
 	
