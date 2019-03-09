@@ -260,7 +260,7 @@ void editorUpdateRow(erow *row) {
 
  	 free(row->render);
 	 //tab of size 8
-	 //1 in \t
+	 //1 in \t char
 	 //so add 7
  	 row->render = malloc(row->size + tabs*(EDITOR_TAB_STOP - 1) + 1);
 
