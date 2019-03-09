@@ -14,6 +14,7 @@
 #include<string.h>
 #include<sys/types.h>
 #include<time.h>
+#include<stdarg.h>
 
 /*****************************defines**************************/
 
@@ -520,7 +521,22 @@ void editorDrawStatusBar(struct abuf *ab){
 	}
 
 	abAppend(ab, "\x1b[m", 3); //switch back to normal
+	abAppend(ab, "\r\n", 2);
 }
+
+void editorDrawMessageBar(struct abuf *ab){
+
+	abAppend(ab, "\x1b[K", 3); //first clear msg bar
+	int msglen = strlen(E.statusmsg);
+
+	//check msglen within screen
+	if (msglen > E.screencols) msglen = E.screencols;
+
+	//if within 5 secs then display
+	if (msglen && time(NULL) - E.statusmsg_time < 5)
+		abAppend(ab, E.statusmsg, msglen);
+}
+
 
 
 void editorRefreshScreen(){
@@ -534,6 +550,7 @@ void editorRefreshScreen(){
 
 	editorDrawRows(&ab); //draw ~
 	editorDrawStatusBar(&ab);
+	editorDrawMessageBar(&ab);
 
 	char buf[32];
 	//+1 cause termial 1 indexed
@@ -548,7 +565,20 @@ void editorRefreshScreen(){
 	abFree(&ab);
 }
 
+//any number of arguments
+void editorSetStatusMessage(const char* fmt, ...){
 
+	va_list ap;
+	va_start(ap, fmt); //pass argument before ... so addr of next arg known
+
+	//takes care of other arguments
+	//takes string from argumnet
+	vsnprintf(E.statusmsg, sizeof(E.statusmsg), fmt, ap);
+
+	va_end(ap);
+	E.statusmsg_time = time(NULL);
+
+}
 
 
 
@@ -688,7 +718,8 @@ void initEditor(){
 
 	if (getWindowSize(&E.screenrows, &E.screencols) == -1) die("getWindowSize");
 	
-	E.screenrows -= 1;
+	//for 2 status bars
+	E.screenrows -= 2;
 }
 
 int main(int argc, char* argv[]){
@@ -700,6 +731,8 @@ int main(int argc, char* argv[]){
 		//argv[1] is filename
 		editorOpen(argv[1]);
 	}
+
+	editorSetStatusMessage("HELP: Ctrl-Q = quit");
 
 	//reads 1 byte from stdin
 	while(1){
