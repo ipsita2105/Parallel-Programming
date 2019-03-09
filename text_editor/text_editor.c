@@ -16,6 +16,7 @@
 /*****************************defines**************************/
 
 #define EDITOR_VERSION "0.0.1"
+#define EDITOR_TAB_STOP 8
 
 #define CTRL_KEY(k) ((k) & 0x1f) //for mapping ctrl+_ combos
 
@@ -261,7 +262,7 @@ void editorUpdateRow(erow *row) {
 	 //tab of size 8
 	 //1 in \t
 	 //so add 7
- 	 row->render = malloc(row->size + tabs*7 + 1);
+ 	 row->render = malloc(row->size + tabs*(EDITOR_TAB_STOP - 1) + 1);
 
  	 
  	 int idx = 0;
@@ -273,7 +274,7 @@ void editorUpdateRow(erow *row) {
 		 	row->render[idx++] = ' ';
 
 			//tab end till 8 cols
-			while(idx % 8 != 0) row->render[idx++] = ' ';
+			while(idx % EDITOR_TAB_STOP != 0) row->render[idx++] = ' ';
  		 
 		 }else{
 		 
