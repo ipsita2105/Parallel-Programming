@@ -443,7 +443,16 @@ void editorMoveCursor(int key){
 		if (E.cx != 0){
 
 			E.cx--;
+
+		} else if (E.cy > 0){
+			
+			//<- on start of line 
+			//to goto prev line
+			//if not on first line
+			E.cy --;
+			E.cx = E.row[E.cy].size;
 		}
+
 		break;
 
 	case ARROW_RIGHT:
@@ -451,6 +460,10 @@ void editorMoveCursor(int key){
 		if (row && E.cx < row->size){
 		
 			E.cx++;
+
+		}else if (row && E.cx == row->size){
+			E.cy++;
+			E.cx = 0;
 		}
 		break;
 
