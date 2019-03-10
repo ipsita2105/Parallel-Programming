@@ -4,17 +4,18 @@
 #define _BSD_SOURCE
 #define _GNU_SOURCE
 
-#include<stdlib.h>
-#include<stdio.h>
-#include<unistd.h>
-#include<termios.h>
-#include<ctype.h>
-#include<errno.h>
-#include<sys/ioctl.h>
-#include<string.h>
-#include<sys/types.h>
-#include<time.h>
-#include<stdarg.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <termios.h>
+#include <ctype.h>
+#include <errno.h>
+#include <sys/ioctl.h>
+#include <string.h>
+#include <sys/types.h>
+#include <time.h>
+#include <stdarg.h>
+#include <fcntl.h>
 
 /*****************************defines**************************/
 
@@ -376,6 +377,42 @@ void editorInsertChar(int c){
 
 /*****************************file i/o**************************/
 
+//convert all rows to array of strings to write to file
+char* editorRowsToString(int *buflen){
+
+	int totlen = 0;
+	int j;
+
+	//+1 for newline char
+	for(j=0; j< E.numrows; j++)
+		totlen += E.row[j].size + 1;
+
+	//tell caller how long is the string
+	*buflen = totlen;
+
+	char *buf = malloc(totlen);
+	char *p = buf;
+
+	for(j=0; j<E.numrows; j++){
+		
+		//copy the row to p
+		memcpy(p, E.row[j].chars, E.row[j].size);
+		
+		//goto end
+		p += E.row[j].size;
+
+		//append new line
+		*p = '\n';
+
+		//go 1 step
+		p++;
+	}
+
+	return buf;
+
+}
+
+
 void editorOpen(char* filename){
 
 	free(E.filename);
@@ -403,6 +440,29 @@ void editorOpen(char* filename){
 	fclose(fp);
 
 }
+
+void editorSave(){
+
+
+	if (E.filename == NULL) return;
+
+	int len;
+	char *buf = editorRowsToString(&len);
+
+	//o_creat create new file if not exist
+	//o_rdwr open for r&w
+	//0644 mode permission
+	int fd = open(E.filename, O_RDWR | O_CREAT, 0644);
+
+	//sets file size
+	ftruncate(fd, len);
+	write(fd, buf, len);
+
+	close(fd);
+	free(buf);
+
+}
+
 
 /*****************************append buffer**************************/
 
@@ -699,6 +759,10 @@ void editorProcessKeypress(){
 			  write(STDOUT_FILENO, "\x1b[2J", 4);
 			  write(STDOUT_FILENO, "\x1b[H" ,3);
 			  exit(0);
+			  break;
+
+		case CTRL_KEY('s'):
+			  editorSave();
 			  break;
 
 		case HOME_KEY:
