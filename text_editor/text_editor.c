@@ -21,6 +21,7 @@
 
 #define EDITOR_VERSION "0.0.1"
 #define EDITOR_TAB_STOP 8
+#define KILO_QUIT_TIMES 3
 
 #define CTRL_KEY(k) ((k) & 0x1f) //for mapping ctrl+_ combos
 
@@ -60,6 +61,7 @@ struct editorConfig{
   int screencols;
   int numrows;
   erow* row;
+  int dirty;     //to record the fact that file has been modified
   char *filename;
   char statusmsg[80];
   time_t statusmsg_time;
@@ -354,6 +356,7 @@ void editorAppendRow(char* s, size_t len){
 	editorUpdateRow(&E.row[at]);
 
 	E.numrows ++;
+	E.dirty++;
 
 }
 
@@ -375,6 +378,7 @@ void editorRowInsertChar(erow *row, int at, int c){
 	row->chars[at] = c;
 
 	editorUpdateRow(row);
+	E.dirty++;
 }
 
 /*****************************editor operations**************************/
@@ -457,6 +461,9 @@ void editorOpen(char* filename){
 	free(line);
 	fclose(fp);
 
+	//to account for call to editorAppendRow above
+	E.dirty = 0;
+
 }
 
 void editorSave(){
@@ -483,6 +490,9 @@ void editorSave(){
 				
 				close(fd);
 				free(buf);
+				
+				E.dirty = 0;
+
 				//save status msg
 				editorSetStatusMessage("%d bytes written to disk", len);
 				return;
@@ -626,8 +636,9 @@ void editorDrawStatusBar(struct abuf *ab){
 
 	char status[80], rstatus[80];
 
-	int len = snprintf(status, sizeof(status), "%.20s - %d lines",
-			E.filename ? E.filename : "[No Name]", E.numrows);
+	int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
+			E.filename ? E.filename : "[No Name]", E.numrows,
+			E.dirty ? "(modified)": "");
 
 	int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
 				E.cy + 1, E.numrows);
@@ -764,6 +775,7 @@ void editorMoveCursor(int key){
 //waits for key press and handles it
 //like by mapping
 void editorProcessKeypress(){
+	static int quit_times = KILO_QUIT_TIMES;
 
 	int c = editorReadKey();
 
@@ -775,6 +787,15 @@ void editorProcessKeypress(){
 			break;
 	
 		case CTRL_KEY('q'):
+			
+			  if (E.dirty && quit_times > 0){
+				
+			      editorSetStatusMessage("WARNING!! File has unsaved changes."
+				    "Press Ctrl-Q %d more times to quit.", quit_times);					
+				  quit_times--;
+				  return;
+			  }
+
 			  write(STDOUT_FILENO, "\x1b[2J", 4);
 			  write(STDOUT_FILENO, "\x1b[H" ,3);
 			  exit(0);
@@ -838,6 +859,8 @@ void editorProcessKeypress(){
 			editorInsertChar(c);
 			break;
 	}
+
+	quit_times = KILO_QUIT_TIMES;
 }
 
 
@@ -853,6 +876,7 @@ void initEditor(){
 	E.coloff = 0;
 	E.numrows = 0;
 	E.row = NULL;
+	E.dirty = 0;
 	E.filename = NULL;
 	E.statusmsg[0] = '\0';
 	E.statusmsg_time = 0;
