@@ -69,6 +69,24 @@ struct editorConfig{
 
 struct editorConfig E;
 
+
+/*****************************prototypes**************************/
+
+//any number of arguments
+void editorSetStatusMessage(const char* fmt, ...){
+
+	va_list ap;
+	va_start(ap, fmt); //pass argument before ... so addr of next arg known
+
+	//takes care of other arguments
+	//takes string from argumnet
+	vsnprintf(E.statusmsg, sizeof(E.statusmsg), fmt, ap);
+
+	va_end(ap);
+	E.statusmsg_time = time(NULL);
+
+}
+
 /*****************************terminal**************************/
 
 void die(const char *s){
@@ -454,12 +472,29 @@ void editorSave(){
 	//0644 mode permission
 	int fd = open(E.filename, O_RDWR | O_CREAT, 0644);
 
-	//sets file size
-	ftruncate(fd, len);
-	write(fd, buf, len);
 
-	close(fd);
+	//error handling
+	if (fd != -1){
+	
+		//ftruncate sets file size
+		if(ftruncate(fd, len) != -1){
+		
+			if(write(fd, buf, len) == len){
+				
+				close(fd);
+				free(buf);
+				//save status msg
+				editorSetStatusMessage("%d bytes written to disk", len);
+				return;
+			}
+		}
+
+		close(fd);
+	
+	}
+	
 	free(buf);
+	editorSetStatusMessage("Can't save! I/O error: %s", strerror(errno));
 
 }
 
@@ -662,22 +697,6 @@ void editorRefreshScreen(){
 	abFree(&ab);
 }
 
-//any number of arguments
-void editorSetStatusMessage(const char* fmt, ...){
-
-	va_list ap;
-	va_start(ap, fmt); //pass argument before ... so addr of next arg known
-
-	//takes care of other arguments
-	//takes string from argumnet
-	vsnprintf(E.statusmsg, sizeof(E.statusmsg), fmt, ap);
-
-	va_end(ap);
-	E.statusmsg_time = time(NULL);
-
-}
-
-
 
 /*****************************input**************************/
 
@@ -854,7 +873,7 @@ int main(int argc, char* argv[]){
 		editorOpen(argv[1]);
 	}
 
-	editorSetStatusMessage("HELP: Ctrl-Q = quit");
+	editorSetStatusMessage("HELP:Ctrl-s = save |  Ctrl-Q = quit");
 
 	//reads 1 byte from stdin
 	while(1){
