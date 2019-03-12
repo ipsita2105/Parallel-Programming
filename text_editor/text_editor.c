@@ -46,7 +46,17 @@ enum editorHighlight{
 	HL_MATCH
 };
 
+#define HL_HIGHLIGHT_NUMBERS (1 << 0)
+
 /******************************data***************************/
+
+struct editorSyntax{
+	
+	char*  filetype;
+	char** filematch; //array of strings to match the pattern
+	int flags; //whether to highlight or not
+};
+
 
 //for storing row of text editor
 
@@ -73,12 +83,29 @@ struct editorConfig{
   char *filename;
   char statusmsg[80];
   time_t statusmsg_time;
+  struct editorSyntax* syntax;
   struct termios orig_termios;
 
 };
 
 struct editorConfig E;
 
+/*****************************filetypes**************************/
+
+char *C_HL_extensions[] = {".c", ".h",".cpp", NULL};
+
+struct editorSyntax HLDB[] = {
+
+	//filetype, filematch, flag	
+	{
+	  "c",			
+	  C_HL_extensions,      
+	  HL_HIGHLIGHT_NUMBERS  
+	},
+};
+
+//stores length of HLDB array
+#define HLDB_ENTRIES (sizeof(HLDB)/sizeof(HLDB[0]))
 
 /*****************************prototypes**************************/
 
@@ -301,6 +328,8 @@ void editorUpdateSyntax(erow *row){
 	//set all chars as normal by default
 	memset(row->hl, HL_NORMAL, row->rsize);
 
+	if (E.syntax == NULL) return;
+
 	//start of line is separator
 	int prev_sep = 1; //to keep track if last step was a separator
 
@@ -310,12 +339,18 @@ void editorUpdateSyntax(erow *row){
 		//prev_hl is hl prev char
 		unsigned char prev_hl = (i>0) ? row->hl[i-1]:HL_NORMAL;
 
-		//highlight when prev_char is sep or last is also number
-		if(isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)){
-			row->hl[i] = HL_NUMBER;
-			i++;
-			prev_sep = 0;
-			continue;
+		if (E.syntax->flags & HL_HIGHLIGHT_NUMBERS){
+			//highlight when prev_char is sep or last is also number
+			//also for floats
+			if((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER))
+				      || (c == '.' && prev_hl == HL_NUMBER)){
+
+				row->hl[i] = HL_NUMBER;
+				i++;
+				prev_sep = 0;
+				continue;
+			}
+
 		}
 
 		prev_sep = is_separator(c);
@@ -333,6 +368,47 @@ int editorSyntaxToColor(int hl){
 		default: return 37;
 	}
 }
+
+
+void editorSelectSyntaxHighlight(){
+
+	E.syntax = NULL;
+	if (E.filename == NULL) return;
+
+	//pointer to last occurrence
+	char* ext = strrchr(E.filename,'.');
+
+	//loop in HLDB array
+	for(unsigned int j=0; j<HLDB_ENTRIES; j++){
+		
+		struct editorSyntax* s = &HLDB[j];
+		unsigned int i = 0;
+
+		//go through file match array
+		while(s->filematch[i]){
+		
+			//if pattern starts with a dot
+			int is_ext = (s->filematch[i][0] == '.');
+
+			//check if filename ends with this extension
+			//or if its not an ext check if anywhere in filename
+			if((is_ext  && ext && !strcmp(ext, s->filematch[i])) ||
+			   (!is_ext && strstr(E.filename,  s->filematch[i]))){
+					
+				E.syntax = s;
+
+				int filerow;
+				for(filerow = 0; filerow < E.numrows; filerow++){
+					editorUpdateSyntax(&E.row[filerow]);
+				}
+
+				return;
+			}
+			i++;
+		}
+	}
+}
+
 
 /*****************************row operations**************************/
 //Cx is into chars
@@ -643,6 +719,8 @@ void editorOpen(char* filename){
 	free(E.filename);
 	E.filename = strdup(filename); //makes a copy of given string
 
+	editorSelectSyntaxHighlight();
+
 	FILE *fp   = fopen(filename, "r");
 	if (!fp) die("fopen");
 
@@ -681,6 +759,8 @@ void editorSave(){
 			editorSetStatusMessage("Save aborted");
 			return;
 		}
+
+		editorSelectSyntaxHighlight();
 	}
 
 	int len;
@@ -995,8 +1075,8 @@ void editorDrawStatusBar(struct abuf *ab){
 			E.filename ? E.filename : "[No Name]", E.numrows,
 			E.dirty ? "(modified)": "");
 
-	int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
-				E.cy + 1, E.numrows);
+	int rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d",
+			    E.syntax ? E.syntax->filetype : "no ft", E.cy + 1, E.numrows);
 
 	if (len > E.screencols) len = E.screencols;
 
@@ -1305,6 +1385,7 @@ void initEditor(){
 	E.filename = NULL;
 	E.statusmsg[0] = '\0';
 	E.statusmsg_time = 0;
+	E.syntax = NULL;
 
 	if (getWindowSize(&E.screenrows, &E.screencols) == -1) die("getWindowSize");
 	
