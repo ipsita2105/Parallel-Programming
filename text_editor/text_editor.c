@@ -91,6 +91,8 @@ void editorSetStatusMessage(const char* fmt, ...){
 
 void editorRefreshScreen();
 
+char *editorPrompt(char* prompt);
+
 /*****************************terminal**************************/
 
 void die(const char *s){
@@ -587,7 +589,16 @@ void editorOpen(char* filename){
 void editorSave(){
 
 
-	if (E.filename == NULL) return;
+	if (E.filename == NULL){
+		
+		E.filename = editorPrompt("Save as: %s");
+
+		if (E.filename == NULL){
+			
+			editorSetStatusMessage("Save aborted");
+			return;
+		}
+	}
 
 	int len;
 	char *buf = editorRowsToString(&len);
@@ -828,7 +839,7 @@ void editorRefreshScreen(){
 
 
 /*****************************input**************************/
-
+//prompt for save as
 char *editorPrompt(char *prompt){
 
 	size_t bufsize = 128;
@@ -845,14 +856,28 @@ char *editorPrompt(char *prompt){
 
 		int c = editorReadKey();
 
+		//user can press backspace in prompt
+		if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE){
+		
+			if (buflen != 0) buf[--buflen] = '\0';
+		}
+		//cancel if user presses esc
+		else if(c == '\x1b'){
+			
+			editorSetStatusMessage("");
+			free(buf);
+			return NULL;
+		}
+
 		//user presses enter
-		if(c == '\r'){
+		else if(c == '\r'){
 		
 			//input is not empty
 			if(buflen != 0){
 				
 				//clear status msg
 				editorSetStatusMessage("");
+				//return user input
 				return buf;
 
 			}
@@ -861,6 +886,7 @@ char *editorPrompt(char *prompt){
 		
 			//come here when they enter printable char
 		
+			//if buflen max capacity
 			if (buflen == bufsize - 1){
 				
 				bufsize *= 2;
