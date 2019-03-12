@@ -289,18 +289,37 @@ int getWindowSize(int *rows, int *cols){
 
 /**************************syntax highlighting*************************/
 
+int is_separator(int c){
+
+	return isspace(c) || c == '\0' || strchr(",.()+-/*=~%<>[];", c) != NULL;
+}
+
+
 void editorUpdateSyntax(erow *row){
 
 	row->hl = realloc(row->hl, row->rsize);
 	//set all chars as normal by default
 	memset(row->hl, HL_NORMAL, row->rsize);
 
-	int i;
-	for(i=0; i < row->rsize; i++){
-	
-		if(isdigit(row->render[i])){
+	//start of line is separator
+	int prev_sep = 1; //to keep track if last step was a separator
+
+	int i = 0;
+	while(i < row->rsize){
+		char c = row->render[i];
+		//prev_hl is hl prev char
+		unsigned char prev_hl = (i>0) ? row->hl[i-1]:HL_NORMAL;
+
+		//highlight when prev_char is sep or last is also number
+		if(isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)){
 			row->hl[i] = HL_NUMBER;
+			i++;
+			prev_sep = 0;
+			continue;
 		}
+
+		prev_sep = is_separator(c);
+		i++;
 	}
 }
 
@@ -709,6 +728,18 @@ void editorFindCallback(char *query, int key){
 	static int last_match = -1;
 	static int direction  =  1; // 1 forward -1 backward
 
+
+	static int saved_hl_line;   //is there something to restore
+	static char* saved_hl = NULL;
+
+	if(saved_hl){
+	
+		memcpy(E.row[saved_hl_line].hl, saved_hl, E.row[saved_hl_line].rsize);
+		free(saved_hl);
+		saved_hl = NULL;
+
+	}
+
 	//we are about to leave search
 	//reset values
 	if (key == '\r' || key == '\x1b'){
@@ -757,6 +788,10 @@ void editorFindCallback(char *query, int key){
 			//so matching line at start
 			E.rowoff = E.numrows;
 
+
+			saved_hl_line = current;
+			saved_hl = malloc(row->rsize);
+			memcpy(saved_hl, row->hl, row->rsize);
 			//match - row->render match into render
 			memset(&row->hl[match - row->render], HL_MATCH, strlen(query));
 			break;
