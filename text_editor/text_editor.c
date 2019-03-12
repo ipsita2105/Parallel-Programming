@@ -664,10 +664,12 @@ void editorSave(){
 
 void editorFindCallback(char *query, int key){
 
+	//last match has index of row of last match
 	static int last_match = -1;
 	static int direction  =  1; // 1 forward -1 backward
 
 	//we are about to leave search
+	//reset values
 	if (key == '\r' || key == '\x1b'){
 		last_match = -1;
 		direction = 1;
@@ -687,12 +689,15 @@ void editorFindCallback(char *query, int key){
 	}
 
 	if (last_match == -1) direction = 1;
+	//start on the last match
 	int current = last_match;
 
 	int i;
 	for(i=0; i< E.numrows; i++){
 	
 		current += direction;
+
+		//wrap around the file
 		if (current == -1) current = E.numrows - 1;
 		else if (current == E.numrows) current = 0;
 
@@ -725,7 +730,7 @@ void editorFind(){
 	int saved_coloff = E.coloff;
 	int saved_rowoff = E.rowoff;
 
-	char* query = editorPrompt("Search: %s (ESC to cancel)", editorFindCallback);
+	char* query = editorPrompt("Search: %s (Use ESC/Arrows/Enter)", editorFindCallback);
 
 	//on esc null returned
 	if (query){
