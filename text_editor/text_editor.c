@@ -43,6 +43,7 @@ enum editorHighlight{
 	
 	HL_NORMAL = 0,
 	HL_COMMENT,
+	HL_MLCOMMENT,
 	HL_KEYWORD1,
 	HL_KEYWORD2,
 	HL_STRING,
@@ -61,6 +62,8 @@ struct editorSyntax{
 	char** filematch; //array of strings to match the pattern
 	char** keywords;
 	char* singleline_comment_start;
+	char* multiline_comment_start;
+	char* multiline_comment_end;
 	int flags; //whether to highlight or not
 };
 
@@ -69,11 +72,13 @@ struct editorSyntax{
 
 typedef struct erow{
 
+	int idx; //each row knows its index in file
 	int size;
 	int rsize;      //size of render
 	char *chars;
 	char *render;   //contains line to draw on screen
 	unsigned char* hl;
+	int hl_open_comment;
 }erow;
 
 struct editorConfig{
@@ -117,7 +122,7 @@ struct editorSyntax HLDB[] = {
 	  "c",			
 	  C_HL_extensions,      
 	  C_HL_keywords,
-	  "//",
+	  "//","/*","*/",
 	  HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
 	},
 };
@@ -351,11 +356,19 @@ void editorUpdateSyntax(erow *row){
 	char** keywords = E.syntax->keywords;
 
 	char* scs = E.syntax->singleline_comment_start;
+	char* mcs = E.syntax->multiline_comment_start;
+	char* mce = E.syntax->multiline_comment_end;
+
 	int scs_len = scs ? strlen(scs) : 0;
+	int mcs_len = mcs ? strlen(mcs) : 0;
+	int mce_len = mce ? strlen(mce) : 0;
 
 	//start of line is separator
-	int prev_sep  = 1; //to keep track if last step was a separator
-	int in_string = 0; //already inside a string to keep highlighting
+	int prev_sep   = 1; //to keep track if last step was a separator
+	int in_string  = 0; //already inside a string to keep highlighting
+	//if inside a multi line comment
+	//true if unclosed comment
+	int in_comment = (row->idx > 0 && E.row[row->idx - 1].hl_open_comment); 
 
 	int i = 0;
 	while(i < row->rsize){
@@ -363,7 +376,8 @@ void editorUpdateSyntax(erow *row){
 		//prev_hl is hl prev char
 		unsigned char prev_hl = (i>0) ? row->hl[i-1]:HL_NORMAL;
 
-		if (scs_len && !in_string){
+		//no single line comment in multiline
+		if (scs_len && !in_string && !in_comment){
 	
 			//check if that char is start of single line comment	
 			if(!strncmp(&row->render[i], scs, scs_len)){
@@ -372,6 +386,42 @@ void editorUpdateSyntax(erow *row){
 				break;
 			}
 		}
+
+
+		//comment cant be in string
+		if (mcs_len && mce_len && !in_string){
+		
+			//if inside comment
+			if(in_comment){
+			
+				row->hl[i] = HL_MLCOMMENT;
+
+				//if at end
+				if(!strncmp(&row->render[i], mce, mce_len)){
+					
+					memset(&row->hl[i], HL_MLCOMMENT, mce_len);
+					i += mce_len;
+					in_comment = 0;
+					continue;
+				
+				}else{
+					//if not at end
+					//simply consume the character
+					i++;
+					continue;
+				}
+			
+			 //if not in comment check if start of comment
+			}else if (!strncmp(&row->render[i], mcs, mcs_len)){
+				
+				memset(&row->hl[i], HL_MLCOMMENT, mcs_len);
+				i += mcs_len;
+				in_comment = 1;
+				continue;
+			}
+		
+		}
+
 
 		if (E.syntax->flags & HL_HIGHLIGHT_STRINGS){
 			
@@ -459,18 +509,29 @@ void editorUpdateSyntax(erow *row){
 		prev_sep = is_separator(c);
 		i++;
 	}
+
+	int changed = (row->hl_open_comment != in_comment);
+	//open comment state is in comment
+	//state after processing row
+	row->hl_open_comment = in_comment;
+
+	//if comment is on
+	//then rest of the lines will also be comment
+	if(changed && row->idx + 1 < E.numrows)
+		editorUpdateSyntax(&E.row[row->idx + 1]);
 }
 
 int editorSyntaxToColor(int hl){
 
 	switch(hl){
 
-		case HL_COMMENT: return 36;
-		case HL_KEYWORD1: return 33;
-		case HL_KEYWORD2: return 32;
-		case HL_STRING: return 35;		
-		case HL_NUMBER: return 31;
-		case HL_MATCH:  return 34;
+		case HL_COMMENT  :
+		case HL_MLCOMMENT:  return 36;
+		case HL_KEYWORD1 :  return 33;
+		case HL_KEYWORD2 :  return 32;
+		case HL_STRING   :  return 35;		
+		case HL_NUMBER   :  return 31;
+		case HL_MATCH    :  return 34;
 
 		default: return 37;
 	}
@@ -617,8 +678,10 @@ void editorInsertRow(int at, char* s, size_t len){
 	//make space shift
 	memmove(&E.row[at + 1], &E.row[at], sizeof(erow)*(E.numrows - at));
 
-	//realloc to increase row by one
-	E.row = realloc(E.row, sizeof(erow)*(E.numrows+1));
+	//set idx as inserted
+	for(int j = at + 1; j <= E.numrows; j++) E.row[j].idx++;
+
+	E.row[at].idx = at;
 	
 	//at is index of new row
 	E.row[at].size = len;
@@ -629,6 +692,7 @@ void editorInsertRow(int at, char* s, size_t len){
 	E.row[at].rsize = 0;
 	E.row[at].render = NULL;
 	E.row[at].hl = NULL;
+	E.row[at].hl_open_comment = 0;
 	editorUpdateRow(&E.row[at]);
 
 	E.numrows ++;
@@ -652,6 +716,8 @@ void editorDelRow(int at){
 	//shift file one line up
 	//TODO: scope of improvement
 	memmove(&E.row[at], &E.row[at+1], sizeof(erow)*(E.numrows - at - 1));
+
+	for(int j = at; j < E.numrows - 1; j++) E.row[j].idx--;
 
 	E.numrows--;
 	E.dirty++;
@@ -1129,8 +1195,26 @@ void editorDrawRows(struct abuf *ab){
 		   int j;
 		   //loop to find digits
 		   for(j=0; j<len; j++){
-		   
-		   	if (hl[j] == HL_NORMAL){
+		  
+			//for ctrl + chars 
+			if(iscntrl(c[j])){
+				
+				char sym = (c[j] <= 26) ? '@' + c[j] : '?';
+				abAppend(ab, "\x1b[7m", 4); //switch to inverted color
+				abAppend(ab, &sym, 1);      //print char
+				abAppend(ab, "\x1b[m", 3); //back to current color
+
+				//since last line turns off color formatting
+				//we go back to current color
+				if (current_color != -1){
+				   char buf[16];
+				   int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", current_color);
+				   abAppend(ab, buf, clen);
+
+				}
+			}
+   
+			else if (hl[j] == HL_NORMAL){
 
 				if (current_color != -1){
 				
