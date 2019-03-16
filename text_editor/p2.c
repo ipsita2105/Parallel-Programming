@@ -29,7 +29,8 @@
 #define CTRL_KEY(k) ((k) & 0x1f) //for mapping ctrl+_ combos
 
 #define NUM_LOAD_FILE_THREADS 4
-#define NUM_SAVE_FILE_THREADS 1
+#define NUM_SAVE_FILE_THREADS 4
+#define NUM_SYNTAX_THREADS 4
 
 enum editorKey{
 
@@ -527,6 +528,27 @@ void editorUpdateSyntax(erow *row){
 		editorUpdateSyntax(&E.row[row->idx + 1]);
 }
 
+void* editorUpdateSyntax2(void* tnum){
+
+	int my_rank = (int)tnum;
+	int my_start;
+	int my_end;
+
+	my_start = my_rank*(E.numrows/NUM_SYNTAX_THREADS);
+
+	if(my_rank == NUM_SYNTAX_THREADS - 1){
+		my_end = E.numrows;
+	}else{
+		my_end = my_start + (E.numrows/NUM_SYNTAX_THREADS);
+	}
+
+	for(int i=my_start; i<my_end; i++){
+		
+		editorUpdateSyntax(&E.row[i]);
+	
+	}
+}
+
 int editorSyntaxToColor(int hl){
 
 	switch(hl){
@@ -569,18 +591,35 @@ void editorSelectSyntaxHighlight(){
 			if((is_ext  && ext && !strcmp(ext, s->filematch[i])) ||
 			   (!is_ext && strstr(E.filename,  s->filematch[i]))){
 					
-				E.syntax = s;
+				 E.syntax = s;
+				 //#define NUM_SYNTAX_THREADS 4
+				 
+				 FILE* fp = fopen("output3", "w");
+				 clock_t begin = clock();
 
-				int filerow;
-				for(filerow = 0; filerow < E.numrows; filerow++){
-					editorUpdateSyntax(&E.row[filerow]);
-				}
+	               		 pthread_t syntax_threads[NUM_SYNTAX_THREADS];	
+	               		 
+	               		 for(int t=0; t< NUM_SYNTAX_THREADS; t++){
+	               		 	pthread_create(&syntax_threads[t], NULL, editorUpdateSyntax2, (void *)t);
+	               		 }
 
-				return;
-			}
-			i++;
-		}
-	}
+	               		 for(int t=0; t< NUM_SYNTAX_THREADS; t++){
+	               		 	pthread_join(syntax_threads[t], NULL);
+	               		 }
+				 
+				clock_t end = clock();
+
+				char s1[50];
+				int j;
+				j = snprintf(s1, sizeof(s1),"syntax highlight time = %f\n", (double)(end-begin)/CLOCKS_PER_SEC);
+
+				fwrite(s1, sizeof(char), sizeof(s1), fp);
+	               		return;
+	                }
+
+	              i++;
+	         }
+ 	 }
 }
 
 
@@ -1082,9 +1121,20 @@ void editorSave(){
 		editorSelectSyntaxHighlight();
 	}
 
-	int len;
-	char *buf = editorRowsToString(&len);
+	//int len;
+	//char *buf = editorRowsToString(&len);
+	
+	FILE *fout = fopen("output2", "w");
+        clock_t begin = clock();
 
+        int len;
+        char *buf = editorRowsToString(&len);
+
+        clock_t end = clock();
+        char s[30];
+        int j = snprintf(s, sizeof(s), "time to save = %f\n", (double)(end-begin)/CLOCKS_PER_SEC);
+
+        fwrite(s, sizeof(char), sizeof(s), fout);
 	//o_creat create new file if not exist
 	//o_rdwr open for r&w
 	//0644 mode permission
