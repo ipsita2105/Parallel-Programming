@@ -913,6 +913,8 @@ char* editorRowsToString(int *buflen){
 
 int num_lines;
 
+//we can store offsets here??
+//in a map structure
 int get_num_lines(){
 
 	FILE* fp = fopen(E.filename, "r");
@@ -938,11 +940,35 @@ void* load_file(void* tnum){
 
 	int my_rank = (int)tnum;
 
-	//fseek according to thread num
-	//get start and end accroding to rank
+	int my_start;
+	int my_end;
+
+	my_start = my_rank*(num_lines/NUM_LOAD_FILE_THREADS);
+
+	if(my_rank == NUM_LOAD_FILE_THREADS - 1){
+		my_end = num_lines;
+	}else{
+		my_end = my_start + (num_lines/NUM_LOAD_FILE_THREADS);
+	}
+
+	
+	//goto start of your line
+	int linecount = 1;
+	char c;
+	while((c=fgetc(fp)) != EOF && linecount < my_start){
+		
+		if (c == '\n')
+			linecount++;
+	}
+
+	//i dont know why i have to do this
+	//otherwise first char goes missing
+	if(my_rank == 0){
+		fseek(fp, 0, SEEK_SET);
+	}
 
 	int i;
-	for(i=0; i < num_lines; i++){
+	for(i= my_start; i< my_end; i++){
 		
 		linelen = getline(&line, &linecap, fp);
 	     	while(linelen > 0 && (line[linelen -1] == '\n' || line[linelen-1] == '\r'))
@@ -999,7 +1025,7 @@ void editorOpen(char* filename){
 	}
 
 	for(int t=0; t< NUM_LOAD_FILE_THREADS; t++){
-		pthread_join(&load_file_threads[t], NULL);
+		pthread_join(load_file_threads[t], NULL);
 	}
 
 	/* Serial Part
