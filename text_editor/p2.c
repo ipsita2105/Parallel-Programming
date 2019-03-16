@@ -29,6 +29,7 @@
 #define CTRL_KEY(k) ((k) & 0x1f) //for mapping ctrl+_ combos
 
 #define NUM_LOAD_FILE_THREADS 4
+#define NUM_SAVE_FILE_THREADS 1
 
 enum editorKey{
 
@@ -875,6 +876,43 @@ void editorDelChar(){
 
 /*****************************file i/o**************************/
 
+char* save_buffer;
+
+void* rows_to_string(void* tnum){
+
+	int my_rank = (int)tnum;
+
+	int my_start;
+	int my_end;
+
+	my_start = my_rank*(E.numrows/NUM_SAVE_FILE_THREADS);
+
+	if(my_rank == NUM_SAVE_FILE_THREADS - 1){
+		my_end = E.numrows;
+	}else{
+		my_end = my_start + (E.numrows/NUM_SAVE_FILE_THREADS);
+	}
+
+	int my_offset =  0;
+	for(int i=0; i<my_start; i++){
+		
+		my_offset += E.row[i].size + 1;
+	}
+
+
+	char *p = save_buffer + my_offset;
+
+	for(int i=my_start; i<my_end; i++){
+	
+		memcpy(p, E.row[i].chars, E.row[i].size);
+		p += E.row[i].size;
+		*p = '\n';
+		p++;
+	}
+
+
+}
+
 //convert all rows to array of strings to write to file
 char* editorRowsToString(int *buflen){
 
@@ -888,26 +926,21 @@ char* editorRowsToString(int *buflen){
 	//tell caller how long is the string
 	*buflen = totlen;
 
-	char *buf = malloc(totlen);
-	char *p = buf;
-
-	for(j=0; j<E.numrows; j++){
-		
-		//copy the row to p
-		memcpy(p, E.row[j].chars, E.row[j].size);
-		
-		//goto end
-		p += E.row[j].size;
-
-		//append new line
-		*p = '\n';
-
-		//go 1 step
-		p++;
+	
+	save_buffer = malloc(totlen);
+	
+	pthread_t save_file_threads[NUM_SAVE_FILE_THREADS];	
+	
+	for(int t=0; t< NUM_SAVE_FILE_THREADS; t++){
+		pthread_create(&save_file_threads[t], NULL, rows_to_string, (void *)t);
 	}
 
-	return buf;
+	for(int t=0; t< NUM_SAVE_FILE_THREADS; t++){
+		pthread_join(save_file_threads[t], NULL);
+	}	
 
+
+	return save_buffer;
 }
 
 
@@ -990,9 +1023,6 @@ void editorOpen(char* filename){
 
 	editorSelectSyntaxHighlight();
 
-	//FILE *fp   = fopen(filename, "r");
-	//if (!fp) die("fopen");
-
 	FILE *fout = fopen("output","w");
 
 
@@ -1008,7 +1038,6 @@ void editorOpen(char* filename){
 
 	fwrite(s1, sizeof(char), sizeof(s1), fout);
 
-	//fclose(fp);
 
 		
 	//before calling allocate all memory needed for the file
@@ -1026,33 +1055,13 @@ void editorOpen(char* filename){
 
 	for(int t=0; t< NUM_LOAD_FILE_THREADS; t++){
 		pthread_join(load_file_threads[t], NULL);
-	}
-
-	/* Serial Part
-	char *line = NULL;
-	size_t linecap = 0;
-	ssize_t linelen;
-	
-	int i;
-	for(i=0; i < num_lines; i++){
-		
-		linelen = getline(&line, &linecap, fp);
-	     	while(linelen > 0 && (line[linelen -1] == '\n' || line[linelen-1] == '\r'))
-	     		linelen --;
-	     
-	     	editorLoadRow(i, line, linelen);
-	
-	}*/
-	
+	}	
 
 	clock_t end = clock();
 	char s2[50];
 	j = snprintf(s2, sizeof(s2),"time to open file = %f\n", (double)(end-begin)/CLOCKS_PER_SEC);	
 	fwrite(s2, sizeof(char), sizeof(s2), fout);
 
-	//fclose(fp);
-	//free(line);
-	//to account for call to editorAppendRow above
 	E.dirty = 0;
 
 }
