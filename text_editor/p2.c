@@ -20,6 +20,11 @@
 /****parallel libraries*****/
 #include <pthread.h>
 
+/****global variables****************/
+struct abuf ab1;
+struct abuf ab2;
+struct abuf ab3;
+
 /*****************************defines**************************/
 
 #define EDITOR_VERSION "0.0.1"
@@ -31,6 +36,7 @@
 #define NUM_LOAD_FILE_THREADS 4
 #define NUM_SAVE_FILE_THREADS 4
 #define NUM_SYNTAX_THREADS 4
+#define NUM_FIND_THREADS 1
 
 enum editorKey{
 
@@ -1340,7 +1346,7 @@ void editorScroll(){
 
 
 
-void editorDrawRows(struct abuf *ab){
+void* editorDrawRows(){
 	
 	int y;
 	for(y=0; y<E.screenrows; y++){
@@ -1364,16 +1370,16 @@ void editorDrawRows(struct abuf *ab){
 				int padding = (E.screencols - welcomelen)/2;
 			
 				if (padding){
-					abAppend(ab, "~", 1);
+					abAppend(&ab1, "~", 1);
 					padding --;
 				}
 	
-				while (padding--) abAppend(ab, " ", 1);
-				abAppend(ab, welcome, welcomelen);
+				while (padding--) abAppend(&ab1, " ", 1);
+				abAppend(&ab1, welcome, welcomelen);
 	
 			}else{
 	
-			   abAppend(ab, "~", 1);
+			   abAppend(&ab1, "~", 1);
 			}
 	
 	   }else{
@@ -1396,16 +1402,16 @@ void editorDrawRows(struct abuf *ab){
 			if(iscntrl(c[j])){
 				
 				char sym = (c[j] <= 26) ? '@' + c[j] : '?';
-				abAppend(ab, "\x1b[7m", 4); //switch to inverted color
-				abAppend(ab, &sym, 1);      //print char
-				abAppend(ab, "\x1b[m", 3); //back to current color
+				abAppend(&ab1, "\x1b[7m", 4); //switch to inverted color
+				abAppend(&ab1, &sym, 1);      //print char
+				abAppend(&ab1, "\x1b[m", 3); //back to current color
 
 				//since last line turns off color formatting
 				//we go back to current color
 				if (current_color != -1){
 				   char buf[16];
 				   int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", current_color);
-				   abAppend(ab, buf, clen);
+				   abAppend(&ab1, buf, clen);
 
 				}
 			}
@@ -1414,11 +1420,11 @@ void editorDrawRows(struct abuf *ab){
 
 				if (current_color != -1){
 				
-					abAppend(ab, "\x1b[39m", 5);
+					abAppend(&ab1, "\x1b[39m", 5);
 					current_color = -1;
 					
 				}
-				abAppend(ab, &c[j], 1);
+				abAppend(&ab1, &c[j], 1);
 
 			}else{
 
@@ -1431,30 +1437,30 @@ void editorDrawRows(struct abuf *ab){
 					char buf[16];
 					//write the colour to buffer
 					int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
-					abAppend(ab, buf, clen);
+					abAppend(&ab1, buf, clen);
 					
 				}
 
-				abAppend(ab, &c[j], 1);
+				abAppend(&ab1, &c[j], 1);
 			}
 		   }
 
-		   abAppend(ab, "\x1b[39m", 5);
+		   abAppend(&ab1, "\x1b[39m", 5);
 
  	   }
 
 
-		abAppend(ab, "\x1b[K", 3); //clear each line
-		abAppend(ab, "\r\n", 2);
+		abAppend(&ab1, "\x1b[K", 3); //clear each line
+		abAppend(&ab1, "\r\n", 2);
 	
 	}
 
 }
 
 
-void editorDrawStatusBar(struct abuf *ab){
+void* editorDrawStatusBar(){
 
-	abAppend(ab, "\x1b[7m", 4); //switch to inverted colours
+	abAppend(&ab2, "\x1b[7m", 4); //switch to inverted colours
 
 	char status[80], rstatus[80];
 
@@ -1467,7 +1473,7 @@ void editorDrawStatusBar(struct abuf *ab){
 
 	if (len > E.screencols) len = E.screencols;
 
-	abAppend(ab, status, len);
+	abAppend(&ab2, status, len);
 
 	//rest of the white back
 	while (len < E.screencols){
@@ -1475,23 +1481,23 @@ void editorDrawStatusBar(struct abuf *ab){
 		//so that its on right side
 		if (E.screencols - len == rlen){
 			
-			abAppend(ab, rstatus, rlen);
+			abAppend(&ab2, rstatus, rlen);
 			break;
 
 		}else{
-			abAppend(ab, " ", 1);
+			abAppend(&ab2, " ", 1);
 			len++;
 		}
 
 	}
 
-	abAppend(ab, "\x1b[m", 3); //switch back to normal
-	abAppend(ab, "\r\n", 2);
+	abAppend(&ab2, "\x1b[m", 3); //switch back to normal
+	abAppend(&ab2, "\r\n", 2);
 }
 
-void editorDrawMessageBar(struct abuf *ab){
+void* editorDrawMessageBar(){
 
-	abAppend(ab, "\x1b[K", 3); //first clear msg bar
+	abAppend(&ab3, "\x1b[K", 3); //first clear msg bar
 	int msglen = strlen(E.statusmsg);
 
 	//check msglen within screen
@@ -1499,40 +1505,78 @@ void editorDrawMessageBar(struct abuf *ab){
 
 	//if within 5 secs then display
 	if (msglen && time(NULL) - E.statusmsg_time < 5)
-		abAppend(ab, E.statusmsg, msglen);
+		abAppend(&ab3, E.statusmsg, msglen);
 }
-
-
 
 void editorRefreshScreen(){
 
 	editorScroll();
+	
+	ab1.b = NULL; ab1.len =0;
+	ab2.b = NULL; ab2.len =0;
+	ab3.b = NULL; ab3.len =0;
 
-	struct abuf ab = ABUF_INIT;
+	abAppend(&ab1, "\x1b[?25l", 6); //hide cursor before refresh
+	abAppend(&ab1, "\x1b[H", 3);  //reposition cursor	
 
-	abAppend(&ab, "\x1b[?25l", 6); //hide cursor before refresh
-	abAppend(&ab, "\x1b[H", 3);  //reposition cursor	
+	/*********parallel part*********************************/
+	FILE* fp;
+	fp = fopen("output4","w");
 
-	editorDrawRows(&ab); //draw ~
-	editorDrawStatusBar(&ab);
-	editorDrawMessageBar(&ab);
+	clock_t begin = clock();
+	pthread_t refresh_threads[3];	
+	
+	pthread_create(&refresh_threads[0], NULL, editorDrawRows      , NULL );
+	pthread_create(&refresh_threads[1], NULL, editorDrawStatusBar , NULL );
+	pthread_create(&refresh_threads[2], NULL, editorDrawMessageBar, NULL );
+
+	for(int t=0; t< 3; t++){
+		pthread_join(refresh_threads[t], NULL);
+	}	
+
+	clock_t end = clock();
+
+	char s2[50];
+	int j = snprintf(s2, sizeof(s2),"time to refresh file = %f\n", (double)(end-begin)/CLOCKS_PER_SEC);	
+	fwrite(s2, sizeof(char), sizeof(s2), fp);
+	fclose(fp);	
+	
+	/*editorDrawRows(&ab1);
+	editorDrawStatusBar(&ab2);
+	editorDrawMessageBar(&ab3);*/
+
 
 	char buf[32];
 	//+1 cause termial 1 indexed
 	//move cursor to position 
 	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, (E.rx - E.coloff) + 1);
-	abAppend(&ab, buf, strlen(buf));
+	abAppend(&ab3, buf, strlen(buf));
 
 	//abAppend(&ab, "\x1b[H", 3); //after drawing reposition cursor
-	abAppend(&ab, "\x1b[?25h", 6); //unhide cursor
+	abAppend(&ab3, "\x1b[?25h", 6); //unhide cursor
 
-	write(STDOUT_FILENO, ab.b, ab.len);
-	abFree(&ab);
+	//combine ab1, ab2, ab3
+	char *new;
+	new = realloc(ab1.b, ab1.len + ab2.len);
+	memcpy(&new[ab1.len], ab2.b, ab2.len);
+	ab1.b = new;
+	ab1.len += ab2.len;
+
+	char* new2;
+	new2 = realloc(ab1.b, ab1.len + ab3.len);
+	memcpy(&new2[ab1.len], ab3.b, ab3.len);
+	ab1.b = new2;
+	ab1.len += ab3.len;
+
+	write(STDOUT_FILENO, ab1.b, ab1.len);
+
+	abFree(&ab1);
+	abFree(&ab2);
+	abFree(&ab3);
 }
 
 
 /*****************************input**************************/
-//prompt for save as
 char *editorPrompt(char *prompt, void (*callback)(char *, int)){
 
 	size_t bufsize = 128;
